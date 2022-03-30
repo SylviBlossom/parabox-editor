@@ -1,7 +1,7 @@
 local Block = Class{type="Block"}
 
 function Block:init(x, y, width, height, parent, o)
-    local o = o or {}
+    o = o or {}
     self.x = x
     self.y = y
     self.width = width
@@ -15,7 +15,8 @@ function Block:init(x, y, width, height, parent, o)
     self.color = o.color -- custom color override
     self.color_index = o.color_index -- custom color index override
     self.player = o.player or false
-    self.possessable = o.possessable or o.player or false
+    self.possessable = o.possessable or false
+    self.flip_h = o.flip_h or false
 
     self.tiles = {}
     self.walls = {}
@@ -151,7 +152,7 @@ end
 function Block:getColorIndex()
     if self.color_index then
         return self.color_index
-    elseif self.possessable then
+    elseif self.player or self.possessable then
         return COLOR_PLAYER
     elseif self.filled then
         return COLOR_ORANGE
@@ -189,11 +190,20 @@ function Block:isFilled()
     return filled
 end
 
-function Block:draw(depth, full, exclude)
+function Block:draw(depth, full, exclude, from_ref)
     if (full or not self:isFilled()) and depth < 4 then
         -- scale down to 1x1 if this is not the active block
         love.graphics.push()
         if not full then
+            local flip_h = self.flip_h
+            if from_ref and from_ref.flip_h then
+                flip_h = not flip_h
+            end
+            -- flip preview horizontally
+            if flip_h then
+                love.graphics.translate(SCALE, 0)
+                love.graphics.scale(-1, 1)
+            end
             love.graphics.scale(1/self.width, 1/self.height)
         end
 
@@ -268,8 +278,8 @@ function Block:draw(depth, full, exclude)
         Utils.setColor(self:getColor())
         love.graphics.rectangle("fill", 0, 0, 100, 100)
 
-        -- draw player eyes
-        if self.possessable then
+        --[[if not from_ref then
+            -- draw player eyes
             Utils.setColor(self:getColor(), 0.3)
             if self.player then
                 if (love.timer.getTime() - self.blink_timer) % 5 >= 4.8 then
@@ -277,10 +287,10 @@ function Block:draw(depth, full, exclude)
                 else
                     love.graphics.draw(Assets.sprites["player_eyes"])
                 end
-            else
+            elseif self.possessable then
                 love.graphics.draw(Assets.sprites["player_eyes_empty"])
             end
-        end
+        end]]
     end
 
     local ox1,oy1,ox2,oy2
@@ -293,8 +303,8 @@ function Block:draw(depth, full, exclude)
         ox1,oy1 = love.graphics.transformPoint(0, 0)
         ox2,oy2 = love.graphics.transformPoint(100, 100)
 
-        -- draw player eyes
-        if self.possessable then
+        if not from_ref then
+            -- draw player eyes
             Utils.setColor(self:getColor(), 0.3)
             if self.player then
                 if (love.timer.getTime() - self.blink_timer) % 5 >= 4.8 and not SCREENSHOTTING then
@@ -302,7 +312,7 @@ function Block:draw(depth, full, exclude)
                 else
                     love.graphics.draw(Assets.sprites["player_eyes"])
                 end
-            else
+            elseif self.possessable then
                 love.graphics.draw(Assets.sprites["player_eyes_empty"])
             end
         end
@@ -357,7 +367,7 @@ function Block:save(data)
         self.player,                  -- is player
         self.possessable,             -- possessable
         0,                            -- player order
-        false,                        -- flip horizontally
+        self.flip_h,                  -- flip horizontally
         false,                        -- float in space (no parent)
         0,                            -- special effect
     })
@@ -392,6 +402,7 @@ function Block.load(data)
     local new_block = Block(x, y, width, height, data.parent, {
         player = player,
         possessable = possessable,
+        flip_h = flip_h,
         color = {h, s, v},
         empty = not filled
     })
@@ -423,7 +434,13 @@ end
 -- [[ Brush Functions ]]
 
 function Block:place(x, y)
-    local block = Block(x, y, self.width, self.height, self.block, {color = self.color, color_index = self.color_index, player = self.player, possessable = self.possessable})
+    local block = Block(x, y, self.width, self.height, self.block, {
+        color = self.color,
+        color_index = self.color_index,
+        player = self.player,
+        possessable = self.possessable,
+        flip_h = self.flip_h
+    })
     block.key = Editor.next_key
     Editor.next_key = Editor.next_key + 1
     table.insert(Editor.blocks, block)
@@ -441,6 +458,18 @@ function Block:erase()
             table.remove(Editor.blocks, i)
             break
         end
+    end
+end
+
+function Block:openSettings()
+    if Slab.CheckBox(self.player, "Player") then
+        self.player = not self.player
+    end
+    if Slab.CheckBox(self.possessable, "Possessable") then
+        self.possessable = not self.possessable
+    end
+    if Slab.CheckBox(self.flip_h, "Flip H") then
+        self.flip_h = not self.flip_h
     end
 end
 

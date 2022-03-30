@@ -8,6 +8,9 @@ function Editor:init()
     self.next_key = 0
     self.placed = {}
 
+    self.settings_open = false
+    self.settings_target = nil
+
     self.music_popup = 0
     self.music_font = love.graphics.newFont(20)
 
@@ -38,7 +41,7 @@ function Editor:setBlock(block)
         Tiles.Wall(0, 0, self.block),
         Tiles.Block(0, 0, 5, 5, self.block),
         Tiles.Ref(0, 0, self.block, self.block),
-        Tiles.Block(0, 0, 5, 5, self.block, {player = true}),
+        Tiles.Block(0, 0, 5, 5, self.block, {player = true, possessable = true}),
         Tiles.Block(0, 0, 5, 5, self.block, {possessable = true}),
         Tiles.Floor(0, 0, self.block, "PlayerButton"),
         Tiles.Floor(0, 0, self.block, "Button"),
@@ -74,27 +77,40 @@ function Editor:update(dt)
     self.mx = math.floor(self.mx/SCALE)
     self.my = math.floor(self.my/SCALE)
 
-    if self.mode == "place" and not love.mouse.isDown(1) then
+    if self.settings_open then
         self.mode = nil
-    elseif self.mode == "erase" and not love.mouse.isDown(2) then
-        self.mode = nil
-    end
 
-    if self.mode == "place" then
-        if not self.placed[self.mx..","..self.my] then
-            if self:inBounds(self.mx, self.my) then
-                self.block:setTile(self.mx, self.my, self.tools[self.current_tool]:place(self.mx, self.my))
-            end
-            self.placed[self.mx..","..self.my] = true
+        if not self.settings_target then
+            self.settings_open = false
         end
-    elseif self.mode == "erase" then
-        if self:inBounds(self.mx, self.my) then
-            if not self.editing_lines then
-                self.block:setTile(self.mx, self.my, nil)
-            else
-                local tile = self.block:getTile(self.mx, self.my)
-                if tile and tile.type == "Floor" and tile.floor == "Portal" then
-                    self:removeLinesWith(tile)
+
+        if Slab.BeginWindow("TileSettings", {Title = "Editing "..self.settings_target.type, ShowMinimize = false}) then
+            self.settings_target:openSettings()
+            Slab.EndWindow()
+        end
+    else
+        if self.mode == "place" and not love.mouse.isDown(1) then
+            self.mode = nil
+        elseif self.mode == "erase" and not love.mouse.isDown(2) then
+            self.mode = nil
+        end
+
+        if self.mode == "place" then
+            if not self.placed[self.mx..","..self.my] then
+                if self:inBounds(self.mx, self.my) then
+                    self.block:setTile(self.mx, self.my, self.tools[self.current_tool]:place(self.mx, self.my))
+                end
+                self.placed[self.mx..","..self.my] = true
+            end
+        elseif self.mode == "erase" then
+            if self:inBounds(self.mx, self.my) then
+                if not self.editing_lines then
+                    self.block:setTile(self.mx, self.my, nil)
+                else
+                    local tile = self.block:getTile(self.mx, self.my)
+                    if tile and tile.type == "Floor" and tile.floor == "Portal" then
+                        self:removeLinesWith(tile)
+                    end
                 end
             end
         end
@@ -104,9 +120,23 @@ function Editor:update(dt)
 end
 
 function Editor:mousepressed(x, y, btn)
+    if self.settings_open then
+        if Slab.IsVoidHovered() then
+            self.settings_open = false
+            self.settings_target = nil
+        end
+        return
+    end
     if btn == 1 then
         local tile = self.block:getTile(self.mx, self.my)
         if not self.editing_lines then
+            if love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl") then
+                if tile then
+                    self.settings_open = true
+                    self.settings_target = tile
+                end
+                return
+            end
             if tile and tile.type == "Block" then
                 self:setBlock(tile)
             elseif tile and tile.type == "Ref" then
@@ -228,7 +258,7 @@ function Editor:saveLevel()
     local data = {depth = 0}
     ROOT:save(data)
 
-    savestr = table.concat({
+    local savestr = table.concat({
         "version "..LEVEL_VERSION,
         "custom_level_palette "..(PALETTE > 1 and PALETTE-1 or -1),
         "custom_level_music "..MUSIC
@@ -440,6 +470,7 @@ function Editor:draw()
                 love.graphics.setColor(0.5, 0.5, 1)
                 love.graphics.setLineWidth(5)
                 love.graphics.line(x1, y1, x2, y2)
+                love.graphics.setLineWidth(1)
             end
 
             love.graphics.push()

@@ -1,11 +1,17 @@
 local Wall = Class{type="Wall"}
 
-function Wall:init(x, y, parent)
+function Wall:init(x, y, parent, o)
+    o = o or {}
     self.x = x
     self.y = y
     self.block = parent
 
+    self.player = o.player or false
+    self.possessable = o.possessable or false
+
     self.neighbors = {ul = false, u = false, ur = false, l = false, r = false, dl = false, d = false, dr = false}
+
+    self.blink_timer = love.math.random()*5 -- used for blinking effect
 end
 
 function Wall:getDrawColor(screen_space, brightness)
@@ -111,6 +117,18 @@ function Wall:draw(depth, shadow)
             end
         end
     end
+
+    -- draw player eyes
+    Utils.setColor(self.block:getColor(), 0.3)
+    if self.player then
+        if (love.timer.getTime() - self.blink_timer) % 5 >= 4.8 and not SCREENSHOTTING then
+            love.graphics.draw(Assets.sprites["player_eyes_blink"])
+        else
+            love.graphics.draw(Assets.sprites["player_eyes"])
+        end
+    elseif self.possessable then
+        love.graphics.draw(Assets.sprites["player_eyes_empty"])
+    end
 end
 
 function Wall:drawShadow(depth)
@@ -151,10 +169,10 @@ function Wall:save(data)
         depth = data.depth,
         type = "Wall",
 
-        x, y,           -- x, y
-        false,          -- is player
-        false,          -- possessable
-        0,              -- player order
+        x, y,             -- x, y
+        self.player,      -- is player
+        self.possessable, -- possessable
+        0,                -- player order
     })
 end
 
@@ -165,13 +183,28 @@ function Wall.load(data)
     local player_order = Utils.readNum(data)
 
     if data.parent then y = data.parent.height-y-1 end
-    return Wall(x, y, data.parent)
+    return Wall(x, y, data.parent, {
+        player = player,
+        possessable = possessable
+    })
 end
 
 -- [[ Brush Functions ]]
 
 function Wall:place(x, y)
-    return Wall(x, y, self.block)
+    return Wall(x, y, self.block, {
+        player = self.player,
+        possessable = self.possessable
+    })
+end
+
+function Wall:openSettings()
+    if Slab.CheckBox(self.player, "Player") then
+        self.player = not self.player
+    end
+    if Slab.CheckBox(self.possessable, "Possessable") then
+        self.possessable = not self.possessable
+    end
 end
 
 return Wall

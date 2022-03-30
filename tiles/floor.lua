@@ -89,4 +89,15 @@ function Floor:place(x, y)
     return floor
 end
 
+function Floor:openSettings()
+    if Slab.BeginComboBox("FloorType", {Selected = self.floor}) then
+        for _,v in ipairs({"Button", "PlayerButton"}) do
+            if Slab.TextSelectable(v) then
+                self.floor = v
+            end
+        end
+        Slab.EndComboBox()
+    end
+end
+
 return Floor
