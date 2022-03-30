@@ -36,19 +36,17 @@ function Ref:save(data)
         x, y,             -- x, y
         self.ref.key,     -- ref key
         self.exit,        -- exit block
-        false,            -- inf exit block ?
-        0,                -- inf exit block index ?
-        false,            -- inf enter block ?
-        -1,               -- inf level key ?
-        0,                -- inf enter block index ?
-        false,            -- is player ?
-        false,            -- possessable ?
-        0,                -- player order ?
+        false,            -- inf exit
+        0,                -- inf exit number
+        false,            -- inf enter
+        0,                -- inf enter number
+        -1,               -- inf enter level key
+        false,            -- is player
+        false,            -- possessable
+        0,                -- player order
         false,            -- flip horizontally
-        false,            -- create inf zone ?
+        false,            -- float in space (no parent)
         0,                -- special effect
-        "_",              -- unlocker scene (unused)
-        "_",              -- area name
     })
 end
 
@@ -56,7 +54,17 @@ function Ref.load(data)
     local x, y = Utils.readNum(data, 2)
     local key = Utils.readNum(data)
     local exit = Utils.readNum(data)
-    -- literally the rest doesnt matter
+    local inf_exit = Utils.readBool(data)
+    local inf_exit_num = Utils.readNum(data)
+    local inf_enter = Utils.readBool(data)
+    local inf_enter_num = Utils.readNum(data)
+    local inf_enter_key = Utils.readNum(data)
+    local player = Utils.readBool(data)
+    local possessable = Utils.readBool(data)
+    local player_order = Utils.readNum(data)
+    local flip_h = Utils.readBool(data)
+    local float_in_space = Utils.readBool(data)
+    local special_effect = Utils.readNum(data)
 
     if data.parent then y = data.parent.height-y-1 end
     local new_ref = Ref(x, y, data.parent, nil, exit)

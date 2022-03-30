@@ -6,7 +6,6 @@ function Block:init(x, y, width, height, parent, o)
     self.y = y
     self.width = width
     self.height = height
-    --self.size = size -- both width and height (for now? the game has both technically)
     self.block = parent
     self.exit_block = nil
     self.blink_timer = love.math.random()*5 -- used for blinking effect
@@ -353,15 +352,14 @@ function Block:save(data)
         self.key,                     -- key
         self.width, self.height,      -- width, height
         h, s, v,                      -- hue, saturation, value
-        false,                        -- camera follow
         1,                            -- camera zoom factor
-        self.player,                  -- is player
-        self.possessable,             -- possessable ?
-        0,                            -- player order ?
-        false,                        -- flip horizontally
-        false,                        -- flag3 (does something with init idk)
-        0,                            -- special effect (wow)
         true_filled and self ~= ROOT, -- fill with walls
+        self.player,                  -- is player
+        self.possessable,             -- possessable
+        0,                            -- player order
+        false,                        -- flip horizontally
+        false,                        -- float in space (no parent)
+        0,                            -- special effect
     })
     if not true_filled then
         data.depth = data.depth + 1
@@ -381,13 +379,22 @@ function Block.load(data)
     local key = Utils.readNum(data)
     local width, height = Utils.readNum(data, 2)
     local h, s, v = Utils.readNum(data, 3)
-    Utils.read(data, 2)
-    local player = Utils.readBool(data)
-    Utils.read(data, 5)
+    local zoom_factor = Utils.readNum(data)
     local filled = Utils.readBool(data)
+    local player = Utils.readBool(data)
+    local possessable = Utils.readBool(data)
+    local player_order = Utils.readNum(data)
+    local flip_h = Utils.readBool(data)
+    local float_in_space = Utils.readBool(data)
+    local special_effect = Utils.readNum(data)
 
     if data.parent then y = data.parent.height-y-1 end
-    local new_block = Block(x, y, width, height, data.parent, {player = player, color = {h, s, v}, empty = not filled})
+    local new_block = Block(x, y, width, height, data.parent, {
+        player = player,
+        possessable = possessable,
+        color = {h, s, v},
+        empty = not filled
+    })
     new_block.key = key
 
     Editor.next_key = math.max(Editor.next_key, key + 1)

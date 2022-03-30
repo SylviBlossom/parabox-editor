@@ -17,7 +17,7 @@ function Floor:setPortal(name)
 
     if name ~= "" and not name:starts("base:") then
         local fname = name:gsub(" ", "_")
-        local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox Demo\\levels\\"..fname..".png", "rb")
+        local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..fname..".png", "rb")
         if f then
             local byte_str = f:read("*all")
             f:close()

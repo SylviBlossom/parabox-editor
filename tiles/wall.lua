@@ -152,15 +152,17 @@ function Wall:save(data)
         type = "Wall",
 
         x, y,           -- x, y
-        false,          -- is player ?
-        false,          -- possessable ?
-        0,              -- player order ?
-        "_",            -- unlocker scene
+        false,          -- is player
+        false,          -- possessable
+        0,              -- player order
     })
 end
 
 function Wall.load(data)
     local x, y = Utils.readNum(data, 2)
+    local player = Utils.readBool(data)
+    local possessable = Utils.readBool(data)
+    local player_order = Utils.readNum(data)
 
     if data.parent then y = data.parent.height-y-1 end
     return Wall(x, y, data.parent)

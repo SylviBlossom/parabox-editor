@@ -175,9 +175,13 @@ function Editor:keypressed(key)
         elseif key == "p" then
             PALETTE = (PALETTE + 1 - 1) % #PALETTES + 1
         elseif key == "m" then
-            MUSIC = MUSIC + 1
-            if MUSIC > #MUSIC_NAMES then
+            if MUSIC == -1 then
                 MUSIC = 0
+            else
+                MUSIC = MUSIC + 1
+            end
+            if MUSIC > #MUSIC_NAMES then
+                MUSIC = -1
             end
             self.music_popup = 3
         elseif key == "tab" then
@@ -195,7 +199,7 @@ function Editor:keypressed(key)
             if not self.level_name or love.keyboard.isDown("lshift") then
                 Gamestate.push(TextInput, "Save level as:", self.level_name, function(levelname)
                     if levelname ~= "" then
-                        self.level_name = levelname:gsub(" ","_")
+                        self.level_name = levelname
                         self:saveLevel()
                     end
                 end)
@@ -205,7 +209,7 @@ function Editor:keypressed(key)
         elseif key == "o" and love.keyboard.isDown("lctrl") then
             Gamestate.push(TextInput, "Enter level to open:", "", function(levelname)
                 if levelname ~= "" then
-                    self:openLevel(levelname:gsub(" ","_"))
+                    self:openLevel(levelname)
                 end
             end)
         end
@@ -226,8 +230,8 @@ function Editor:saveLevel()
 
     savestr = table.concat({
         "version "..LEVEL_VERSION,
-        "palette "..(PALETTE-1),
-        "music "..MUSIC
+        "custom_level_palette "..(PALETTE > 1 and PALETTE-1 or -1),
+        "custom_level_music "..MUSIC
     },"\n").."\n#\n"
     for _,tile in ipairs(data) do
         local args = {tile.type}
@@ -247,14 +251,14 @@ function Editor:saveLevel()
         savestr = savestr..line.."\n"
     end
 
-    local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox Demo\\levels\\"..self.level_name..".lvl", "w")
+    local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..self.level_name..".txt", "w")
     if not f then
         error(err)
     end
     f:write(savestr)
     f:close()
 
-    if self.level_name == "hub" or self.level_name:ends("/hub") or self.level_name:ends("\\hub") then
+    --[[if self.level_name == "hub" or self.level_name:ends("/hub") or self.level_name:ends("\\hub") then
         local dir = self.level_name:sub(1, -4)
 
         local linestr = ""
@@ -264,7 +268,7 @@ function Editor:saveLevel()
             linestr = linestr..(line.immediate and "1" or "0").."\n"
         end
 
-        local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox Demo\\levels\\"..dir.."puzzle_lines.txt", "w")
+        local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..dir.."puzzle_lines.txt", "w")
         if not f then
             error(err)
         end
@@ -272,11 +276,11 @@ function Editor:saveLevel()
         f:close()
     end
 
-    self.save_icon = true
+    self.save_icon = true]]
 end
 
 function Editor:openLevel(levelname)
-    local f = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox Demo\\levels\\"..levelname..".lvl", "r")
+    local f = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..levelname..".txt", "r")
     if not f then return end
     local data_str = f:read("*all")
 
@@ -295,9 +299,13 @@ function Editor:openLevel(levelname)
                 if args[2] ~= tostring(LEVEL_VERSION) then
                     error("Unsupported level version: "..args[2])
                 end
-            elseif args[1] == "palette" then
-                PALETTE = tonumber(args[2]) + 1
-            elseif args[1] == "music" then
+            elseif args[1] == "custom_level_palette" then
+                if tonumber(args[2]) == -1 then
+                    PALETTE = 1
+                else
+                    PALETTE = tonumber(args[2]) + 1
+                end
+            elseif args[1] == "custom_level_music" then
                 MUSIC = tonumber(args[2])
             elseif args[1] == "#" then
                 section = "tiles"
@@ -460,7 +468,7 @@ function Editor:draw()
         love.graphics.origin()
         love.graphics.setFont(self.music_font)
 
-        local music_string = ""..MUSIC_NAMES[MUSIC]..""
+        local music_string = MUSIC_NAMES[MUSIC] or "None"
         local alpha = math.min(self.music_popup, 1)
 
         love.graphics.setColor(0, 0, 0, alpha)
@@ -479,7 +487,7 @@ function Editor:draw()
 
 
     -- save preview icon for level portals
-    if self.save_icon then
+    --[[if self.save_icon then
         local canvas = love.graphics.newCanvas(PREVIEW_SIZE, PREVIEW_SIZE)
         love.graphics.setCanvas(canvas)
         love.graphics.replaceTransform(self:getIconTransform())
@@ -492,7 +500,7 @@ function Editor:draw()
 
         local success, png_data = pcall(function() return img_data:encode("png") end)
         if success then
-            local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox Demo\\levels\\"..self.level_name..".png", "wb")
+            local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..self.level_name..".png", "wb")
             if not f then
                 error(err)
             end
@@ -501,7 +509,7 @@ function Editor:draw()
         end
 
         self.save_icon = false
-    end
+    end]]
 end
 
 return Editor
