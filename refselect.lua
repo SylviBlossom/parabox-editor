@@ -1,26 +1,14 @@
 local RefSelect = {}
 
-function RefSelect:enter(previous, ref, blocks)
-    self.ref = ref
+function RefSelect:enter(previous, selected, blocks, callback)
     self.blocks = blocks
+    self.callback = callback
     self.selected = 1
     for i,block in ipairs(self.blocks) do
-        if self.ref.ref == block then
+        if block == selected then
             self.selected = i
         end
     end
-end
-
-function RefSelect:setRef(exit)
-    local new_ref = self.blocks[self.selected]
-    if self.ref.exit then
-        self.ref.ref.exit_block = nil
-    end
-    self.ref.exit = exit
-    if exit then
-        new_ref.exit_block = self.ref
-    end
-    self.ref.ref = new_ref
 end
 
 function RefSelect:keypressed(key)
@@ -29,7 +17,7 @@ function RefSelect:keypressed(key)
     elseif key == "right" or key == "d" then
         self.selected = (self.selected + 1 - 1) % #self.blocks + 1
     elseif key == "return" then
-        self:setRef(love.keyboard.isDown("lctrl"))
+        self.callback(self.blocks[self.selected], love.keyboard.isDown("lctrl"))
         Gamestate.switch(Editor)
     elseif key == "escape" then
         Gamestate.switch(Editor)
@@ -40,7 +28,7 @@ function RefSelect:mousepressed(x, y, btn)
     local mx, my = love.mouse.getPosition()
     local bx, by = (love.graphics.getWidth() - love.graphics.getWidth()*(2/3)) / 2
     if btn == 1 or btn == 3 then
-        self:setRef(btn == 3)
+        self.callback(self.blocks[self.selected], btn == 3)
         Gamestate.switch(Editor)
     elseif btn == 2 then
         Gamestate.switch(Editor)
@@ -70,7 +58,7 @@ function RefSelect:draw()
             love.graphics.scale(0.8, 0.8)
         end
         love.graphics.applyTransform(self:getTransform(block))
-        block:draw(0)
+        block:draw(0, true)
         if i == 0 then
             love.graphics.setColor(1, 1, 1, math.abs(math.sin(love.timer.getTime() * 2)) * 0.3 + 0.2)
             love.graphics.rectangle("fill", 0, 0, block.width * SCALE, block.height * SCALE)

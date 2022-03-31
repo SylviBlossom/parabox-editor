@@ -104,28 +104,19 @@ function Utils.read(args, amt)
     end
 end
 
-
--- converts between the level name format used in the editor
--- and the level name format used in level files
-
-function Utils.fromSaveName(name)
-    local new_name = name:gsub("_", " "):trim()
-    if new_name:starts("custom:") then
-        return new_name:sub(8)
-    else
-        return "base:"..new_name
+function Utils.fileExists(file)
+    local ok, err, code = os.rename(file, file)
+    if not ok then
+        if code == 13 then
+            -- Permission denied, but it exists
+            return true
+        end
     end
+    return ok, err
 end
 
-function Utils.toSaveName(name)
-    local new_name = name:trim():gsub(" ", "_")
-    if new_name == "" then
-        return "_"
-    elseif new_name:starts("base:") then
-        return new_name:sub(6)
-    else
-        return "custom:"..new_name
-    end
+function Utils.getPath(str)
+     return str:match("(.*[/\\])")
 end
 
 return Utils

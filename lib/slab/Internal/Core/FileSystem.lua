@@ -133,8 +133,8 @@ if FFI.os == "Windows" then
 				local Name = w2u(FindData.cFileName)
 
 				if Name ~= "." and Name ~= ".." then
-					local AddDirectory = (FindData.dwFileAttributes == 16 or FindData.dwFileAttributes == 17) and Options.Directories
-					local AddFile = FindData.dwFileAttributes == 32 and Options.Files
+					local AddDirectory = Bit.band(FindData.dwFileAttributes, 16) == 16 and Options.Directories
+					local AddFile = Bit.band(FindData.dwFileAttributes, 32) == 32 and Options.Files
 
 					if (AddDirectory or AddFile) and not ShouldFilter(Name, Options.Filter) then
 						table.insert(Result, Name)

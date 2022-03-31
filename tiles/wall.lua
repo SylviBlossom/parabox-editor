@@ -8,6 +8,7 @@ function Wall:init(x, y, parent, o)
 
     self.player = o.player or false
     self.possessable = o.possessable or false
+    self.player_order = o.player_order or 0
 
     self.neighbors = {ul = false, u = false, ur = false, l = false, r = false, dl = false, d = false, dr = false}
 
@@ -169,10 +170,10 @@ function Wall:save(data)
         depth = data.depth,
         type = "Wall",
 
-        x, y,             -- x, y
-        self.player,      -- is player
-        self.possessable, -- possessable
-        0,                -- player order
+        x, y,              -- x, y
+        self.player,       -- is player
+        self.possessable,  -- possessable
+        self.player_order, -- player order
     })
 end
 
@@ -185,7 +186,8 @@ function Wall.load(data)
     if data.parent then y = data.parent.height-y-1 end
     return Wall(x, y, data.parent, {
         player = player,
-        possessable = possessable
+        possessable = possessable,
+        player_order = player_order
     })
 end
 
@@ -194,13 +196,18 @@ end
 function Wall:place(x, y)
     return Wall(x, y, self.block, {
         player = self.player,
-        possessable = self.possessable
+        possessable = self.possessable,
+        player_order = self.player_order
     })
 end
 
 function Wall:openSettings()
     if Slab.CheckBox(self.player, "Player") then
         self.player = not self.player
+    end
+    Slab.SameLine()
+    if Slab.Input("PlayerOrderInput", {Text = tostring(self.player_order), NumbersOnly = true, NoDrag = true, W = 40}) then
+        self.player_order = Slab.GetInputNumber()
     end
     if Slab.CheckBox(self.possessable, "Possessable") then
         self.possessable = not self.possessable

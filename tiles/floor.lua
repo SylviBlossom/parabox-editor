@@ -8,11 +8,11 @@ function Floor:init(x, y, parent, floor, o)
     self.floor = floor
 
     -- for Portals
-    self.portal_icon = nil
-    self:setPortal(o.portal or "")
+    --self.portal_icon = nil
+    --self:setPortal(o.portal or "")
 end
 
-function Floor:setPortal(name)
+--[[function Floor:setPortal(name)
     self.portal = name
 
     if name ~= "" and not name:starts("base:") then
@@ -27,7 +27,7 @@ function Floor:setPortal(name)
             self.portal_icon = love.graphics.newImage(image_data)
         end
     end
-end
+end]]
 
 function Floor:draw()
     Utils.setColor(self.block:getColor(), 1, 0.75)
@@ -35,7 +35,8 @@ function Floor:draw()
         love.graphics.draw(Assets.sprites["floor_button"])
     elseif self.floor == "PlayerButton" then
         love.graphics.draw(Assets.sprites["floor_playerbutton"])
-    elseif self.floor == "Portal" then
+    end
+    --[[elseif self.floor == "Portal" then
         if not self.portal_icon then
             love.graphics.draw(Assets.sprites["floor_portal"])
         else
@@ -45,7 +46,7 @@ function Floor:draw()
         end
     else
         love.graphics.draw(Assets.sprites["floor_unknown"])
-    end
+    end]]
 end
 
 function Floor:save(data)
@@ -57,9 +58,9 @@ function Floor:save(data)
         x, y,           -- x, y
         self.floor,     -- text
     }
-    if self.floor == "Portal" then
+    --[[if self.floor == "Portal" then
         table.insert(new_data, Utils.toSaveName(self.portal))
-    end
+    end]]
 
     table.insert(data, new_data)
 end
@@ -68,23 +69,23 @@ function Floor.load(data)
     local x, y = Utils.readNum(data, 2)
     local text = Utils.readStr(data)
 
-    local portal = ""
+    --[[local portal = ""
     if text == "Portal" then
         portal = Utils.fromSaveName(Utils.readStr(data))
-    end
+    end]]
 
     if data.parent then y = data.parent.height-y-1 end
-    return Floor(x, y, data.parent, text, {portal = portal})
+    return Floor(x, y, data.parent, text) --{portal = portal})
 end
 
 function Floor:place(x, y)
-    local floor = Floor(x, y, self.block, self.floor, {portal = self.portal})
+    local floor = Floor(x, y, self.block, self.floor) --{portal = self.portal})
 
-    if self.floor == "Portal" then
+    --[[if self.floor == "Portal" then
         Gamestate.push(TextInput, "Level portal:", floor.portal, function(levelname)
             floor:setPortal(levelname)
         end)
-    end
+    end]]
 
     return floor
 end

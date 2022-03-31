@@ -5,11 +5,17 @@ function Editor:init()
     self.current_tool = 1
     self.mode = nil
     self.mx, self.my = 0, 0
-    self.next_key = 0
+    self.next_key = 1
     self.placed = {}
 
     self.settings_open = false
     self.settings_target = nil
+    self.settings_pos = {0, 0}
+    self.settings_pos_adjusted = false
+
+    self.file_dialog = nil
+    self.default_folder_path = self:getLevelsPath()
+    print("Found default path: "..self.default_folder_path)
 
     self.music_popup = 0
     self.music_font = love.graphics.newFont(20)
@@ -22,15 +28,12 @@ end
 function Editor:reset()
     PALETTE = 1
     MUSIC = 0
-    self.level_name = nil
-    self.next_key = 0
+    self.level_path = nil
+    self.next_key = 1
     ROOT = Tiles.Block(-1, -1, 7, 7, nil, {color_index = COLOR_ROOT}) -- create a new root block
+    ROOT.key = 0
     self:setBlock(ROOT) -- set the current editor block to the root block
     self.blocks = {ROOT}
-
-    self.hub_lines = {}
-    self.editing_lines = false
-    self.selected_portal = nil
 end
 
 function Editor:setBlock(block)
@@ -42,10 +45,8 @@ function Editor:setBlock(block)
         Tiles.Block(0, 0, 5, 5, self.block),
         Tiles.Ref(0, 0, self.block, self.block),
         Tiles.Block(0, 0, 5, 5, self.block, {player = true, possessable = true}),
-        Tiles.Block(0, 0, 5, 5, self.block, {possessable = true}),
         Tiles.Floor(0, 0, self.block, "PlayerButton"),
-        Tiles.Floor(0, 0, self.block, "Button"),
-        Tiles.Floor(0, 0, self.block, "Portal"),
+        Tiles.Floor(0, 0, self.block, "Button")
     }
 end
 
@@ -53,22 +54,8 @@ function Editor:inBounds(x, y)
     return x >= 0 and y >= 0 and x < self.block.width and y < self.block.height
 end
 
-function Editor:addLine(from, to, immediate)
-    table.insert(self.hub_lines, {from = from, to = to, immediate = immediate})
-end
-
-function Editor:removeLinesWith(floor)
-    local remove_line = {}
-    local count = 0
-    for i,line in ipairs(self.hub_lines) do
-        if line.from == floor or line.to == floor then
-            remove_line[i-count] = true
-            count = count + 1
-        end
-    end
-    for i,_ in pairs(remove_line) do
-        table.remove(self.hub_lines, i)
-    end
+function Editor:isUIOpen()
+    return self.settings_open or self.file_dialog ~= nil
 end
 
 function Editor:update(dt)
@@ -77,18 +64,60 @@ function Editor:update(dt)
     self.mx = math.floor(self.mx/SCALE)
     self.my = math.floor(self.my/SCALE)
 
-    if self.settings_open then
+    if self.file_dialog then
+        self.mode = nil
+
+        local dir = self.default_folder_path
+        if dir:sub(-1, -1) == "/" then
+            dir = dir:sub(1, -2)
+        end
+
+        local result = Slab.FileDialog({
+            Type = self.file_dialog == "save" and "savefile" or "openfile",
+            Directory = dir,
+            Filters = {
+                {"*.txt","Text Files"},
+                {"*.*","All Files"}
+            },
+            AllowMultiSelect = false
+        })
+
+        if result.Button ~= "" then
+            if result.Button == "OK" then
+                local file = result.Files[1]
+                self.default_folder_path = Utils.getPath(file)
+                if self.file_dialog == "save" then
+                    self.level_path = file
+                    self:saveLevel()
+                elseif self.file_dialog == "open" then
+                    self:openLevel(file)
+                end
+            end
+            self.file_dialog = nil
+        end
+    elseif self.settings_open then
         self.mode = nil
 
         if not self.settings_target then
             self.settings_open = false
         end
 
-        if Slab.BeginWindow("TileSettings", {Title = "Editing "..self.settings_target.type, ShowMinimize = false}) then
+        local target_name = self.settings_target.type
+        if self.settings_target.type == "Block" then
+            target_name = target_name.." ["..tostring(self.settings_target.key).."]"
+        end
+        local opts = {Title = "Editing "..target_name, ShowMinimize = false, ConstrainPosition = true, X = self.settings_pos[1], Y = self.settings_pos[2]}
+        if not self.settings_pos_adjusted then
+            self.settings_pos_adjusted = true
+            opts.ResetPosition = true
+        end
+        if Slab.BeginWindow("TileSettings", opts) then
             self.settings_target:openSettings()
             Slab.EndWindow()
         end
     else
+        self.settings_pos_adjusted = false
+
         if self.mode == "place" and not love.mouse.isDown(1) then
             self.mode = nil
         elseif self.mode == "erase" and not love.mouse.isDown(2) then
@@ -104,14 +133,7 @@ function Editor:update(dt)
             end
         elseif self.mode == "erase" then
             if self:inBounds(self.mx, self.my) then
-                if not self.editing_lines then
-                    self.block:setTile(self.mx, self.my, nil)
-                else
-                    local tile = self.block:getTile(self.mx, self.my)
-                    if tile and tile.type == "Floor" and tile.floor == "Portal" then
-                        self:removeLinesWith(tile)
-                    end
-                end
+                self.block:setTile(self.mx, self.my, nil)
             end
         end
     end
@@ -127,53 +149,55 @@ function Editor:mousepressed(x, y, btn)
         end
         return
     end
+    if self.file_dialog then
+        return
+    end
     if btn == 1 then
         local tile = self.block:getTile(self.mx, self.my)
-        if not self.editing_lines then
-            if love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl") then
-                if tile then
-                    self.settings_open = true
-                    self.settings_target = tile
-                end
-                return
+        if love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl") then
+            if tile then
+                self.settings_open = true
+                self.settings_target = tile
+                self.settings_pos = {love.mouse.getPosition()}
             end
-            if tile and tile.type == "Block" then
-                self:setBlock(tile)
-            elseif tile and tile.type == "Ref" then
-                local ref_blocks = {}
-                for _,block in ipairs(self.blocks) do
-                    if not block.filled then
-                        table.insert(ref_blocks, block)
-                    end
+            return
+        end
+        if tile and tile.type == "Block" then
+            self:setBlock(tile)
+        elseif tile and tile.type == "Ref" then
+            self:openRefSelect(tile.ref, function(selected, exit)
+                if tile.exit and tile.ref.exit_block == tile then
+                    tile.ref.exit_block = nil
                 end
-                Gamestate.switch(RefSelect, tile, ref_blocks)
-            elseif tile and tile.type == "Floor" and tile.floor == "Portal" then
-                self.editing_lines = true
-            else
-                self.mode = "place"
-            end
+                tile.exit = exit
+                if exit then
+                    selected.exit_block = tile
+                end
+                tile.ref = selected
+            end)
         else
-            if tile and tile.type == "Floor" and tile.floor == "Portal" then
-                if not self.selected_portal then
-                    self.selected_portal = tile
-                elseif self.selected_portal == tile then
-                    self.selected_portal = nil
-                else
-                    local from, to = self.selected_portal, tile
-                    local immediate = true
-                    local dx, dy = math.abs(to.x - from.x), math.abs(to.y - from.y)
-
-                    if dx + dy > 1 then
-                        immediate = false
-                    end
-
-                    self:addLine(from, to, immediate)
-                    self.selected_portal = nil
-                end
-            end
+            self.mode = "place"
         end
     elseif btn == 2 then
         self.mode = "erase"
+    end
+end
+
+function Editor:openRefSelect(selected, callback)
+    local ref_blocks = {}
+    for _,block in ipairs(self.blocks) do
+        if not block.filled or block == ROOT then
+            table.insert(ref_blocks, block)
+        end
+    end
+    Gamestate.switch(RefSelect, selected, ref_blocks, callback)
+end
+
+function Editor:getBlockByKey(key)
+    for _,block in ipairs(self.blocks) do
+        if block.key == key then
+            return block
+        end
     end
 end
 
@@ -183,77 +207,99 @@ function Editor:mousereleased(x, y, btn)
 end
 
 function Editor:keypressed(key)
-    if not self.editing_lines then
-        if key == "=" then
-            if love.keyboard.isDown("w") or love.keyboard.isDown("s") then
-                self.block:resize(self.block.width, self.block.height + 1)
-            elseif love.keyboard.isDown("a") or love.keyboard.isDown("d") then
-                self.block:resize(self.block.width + 1, self.block.height)
-            else
-                self.block:resize(self.block.width + 1, self.block.height + 1)
-            end
-        elseif key == "-" then
-            if love.keyboard.isDown("w") or love.keyboard.isDown("s") then
-                self.block:resize(self.block.width, self.block.height - 1)
-            elseif love.keyboard.isDown("a") or love.keyboard.isDown("d") then
-                self.block:resize(self.block.width - 1, self.block.height)
-            else
-                self.block:resize(self.block.width - 1, self.block.height - 1)
-            end
-        elseif key == "c" then
-            self.block.color_index = (self.block:getColorIndex() + 1 - 1) % #COLORS + 1
-        elseif key == "p" then
-            PALETTE = (PALETTE + 1 - 1) % #PALETTES + 1
-        elseif key == "m" then
-            if MUSIC == -1 then
-                MUSIC = 0
-            else
-                MUSIC = MUSIC + 1
-            end
-            if MUSIC > #MUSIC_NAMES then
-                MUSIC = -1
-            end
-            self.music_popup = 3
-        elseif key == "tab" then
-            self.current_tool = self.current_tool + 1
-            if self.current_tool > #self.tools then
-                self.current_tool = 1
-            end
-        elseif key == "escape" then
-            if self.block.block then
-                self:setBlock(self.block.block)
-            end
-        elseif key == "r" and love.keyboard.isDown("lctrl") then
-            self:reset()
-        elseif key == "s" and love.keyboard.isDown("lctrl") then
-            if not self.level_name or love.keyboard.isDown("lshift") then
-                Gamestate.push(TextInput, "Save level as:", self.level_name, function(levelname)
-                    if levelname ~= "" then
-                        self.level_name = levelname
-                        self:saveLevel()
-                    end
-                end)
-            else
-                self:saveLevel()
-            end
-        elseif key == "o" and love.keyboard.isDown("lctrl") then
-            Gamestate.push(TextInput, "Enter level to open:", "", function(levelname)
-                if levelname ~= "" then
-                    self:openLevel(levelname)
-                end
-            end)
+    if self.settings_open then
+        if love.keyboard.isDown("escape") then
+            self.settings_open = false
+            self.settings_target = nil
+        end
+        return
+    end
+    if self.file_dialog then
+        return
+    end
+    if key == "=" then
+        if love.keyboard.isDown("w") or love.keyboard.isDown("s") then
+            self.block:resize(self.block.width, self.block.height + 1)
+        elseif love.keyboard.isDown("a") or love.keyboard.isDown("d") then
+            self.block:resize(self.block.width + 1, self.block.height)
+        else
+            self.block:resize(self.block.width + 1, self.block.height + 1)
+        end
+    elseif key == "-" then
+        if love.keyboard.isDown("w") or love.keyboard.isDown("s") then
+            self.block:resize(self.block.width, self.block.height - 1)
+        elseif love.keyboard.isDown("a") or love.keyboard.isDown("d") then
+            self.block:resize(self.block.width - 1, self.block.height)
+        else
+            self.block:resize(self.block.width - 1, self.block.height - 1)
+        end
+    elseif key == "c" then
+        self.block.color_index = (self.block:getColorIndex() + 1 - 1) % #COLORS + 1
+    elseif key == "p" then
+        PALETTE = (PALETTE + 1 - 1) % #PALETTES + 1
+    elseif key == "m" then
+        if MUSIC == -1 then
+            MUSIC = 0
+        else
+            MUSIC = MUSIC + 1
+        end
+        if MUSIC > #MUSIC_NAMES then
+            MUSIC = -1
+        end
+        self.music_popup = 3
+    elseif key == "tab" then
+        self.current_tool = self.current_tool + 1
+        if self.current_tool > #self.tools then
+            self.current_tool = 1
+        end
+    elseif key == "escape" then
+        if self.block.block then
+            self:setBlock(self.block.block)
+        end
+    elseif key == "r" and love.keyboard.isDown("lctrl") then
+        self:reset()
+    elseif key == "s" and love.keyboard.isDown("lctrl") then
+        if not self.level_path or love.keyboard.isDown("lshift") then
+            self.file_dialog = "save"
+        else
+            self:saveLevel()
+        end
+    elseif key == "o" and love.keyboard.isDown("lctrl") then
+        self.file_dialog = "open"
+    end
+end
+
+function Editor:getLevelsPath()
+    local current_os = love.system.getOS()
+    if current_os == "Windows" then
+        local parabox_path = os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\"
+        if Utils.fileExists(parabox_path) then
+            return string.gsub(parabox_path.."custom_levels", "\\", "/")
+        end
+    elseif current_os == "Linux" then
+        local parabox_path
+        if os.getenv('XDG_CONFIG_HOME') then
+            parabox_path = os.getenv('XDG_CONFIG_HOME').."/unity3d/Patrick Traynor/Patrick's Parabox/"
+        else
+            parabox_path = os.getenv('HOME').."/.config/unity3d/Patrick Traynor/Patrick's Parabox/"
+        end
+        if Utils.fileExists(parabox_path) then
+            return parabox_path.."custom_levels"
+        end
+    elseif current_os == "OS X" then
+        local parabox_path = "~/Library/Application Support/Patrick Traynor/Patrick's Parabox/"
+        if Utils.fileExists(parabox_path) then
+            return parabox_path.."custom_levels"
         end
     else
-        if key == "escape" then
-            self.editing_lines = false
-        end
+        print("No default filepaths for OS: "..current_os)
     end
 end
 
 function Editor:saveLevel()
-    for i,block in ipairs(self.blocks) do
+    --[[for i,block in ipairs(self.blocks) do
         block.key = i - 1
-    end
+    end]]
 
     local data = {depth = 0}
     ROOT:save(data)
@@ -281,41 +327,21 @@ function Editor:saveLevel()
         savestr = savestr..line.."\n"
     end
 
-    local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..self.level_name..".txt", "w")
+    local f, err = io.open(self.level_path, "w")
     if not f then
         error(err)
     end
     f:write(savestr)
     f:close()
-
-    --[[if self.level_name == "hub" or self.level_name:ends("/hub") or self.level_name:ends("\\hub") then
-        local dir = self.level_name:sub(1, -4)
-
-        local linestr = ""
-        for _,line in ipairs(self.hub_lines) do
-            linestr = linestr..(Utils.toSaveName(line.from.portal)).." "
-            linestr = linestr..(Utils.toSaveName(line.to.portal)).." "
-            linestr = linestr..(line.immediate and "1" or "0").."\n"
-        end
-
-        local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..dir.."puzzle_lines.txt", "w")
-        if not f then
-            error(err)
-        end
-        f:write(linestr)
-        f:close()
-    end
-
-    self.save_icon = true]]
 end
 
-function Editor:openLevel(levelname)
-    local f = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..levelname..".txt", "r")
+function Editor:openLevel(path)
+    local f = io.open(path, "r")
     if not f then return end
     local data_str = f:read("*all")
 
-    self.level_name = levelname
-    self.next_key = 0
+    self.level_path = path
+    self.next_key = 1
     self.blocks = {}
 
     local section = "header"
@@ -440,46 +466,7 @@ function Editor:draw()
     love.graphics.replaceTransform(self:getTransform())
     self.block:draw(0, true)
 
-    if self.editing_lines then
-        love.graphics.push()
-        love.graphics.origin()
-        love.graphics.setColor(0, 0, 0, 0.5)
-        love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
-        love.graphics.pop()
-
-        for _,tile in pairs(self.block.tiles) do
-            if tile.type == "Floor" and tile.floor == "Portal" then
-                if self.selected_portal == tile then
-                    love.graphics.setColor(1, 1, 0.5, 0.5)
-                elseif self.mx == tile.x and self.my == tile.y then
-                    love.graphics.setColor(1, 1, 1, math.abs(math.sin(love.timer.getTime() * 2)) * 0.3 + 0.2)
-                else
-                    love.graphics.setColor(0, 0, 0, 0)
-                end
-                love.graphics.rectangle("fill", tile.x*SCALE, tile.y*SCALE, SCALE, SCALE)
-            end
-        end
-
-        for _,line in ipairs(self.hub_lines) do
-            local x1, y1 = (line.from.x + 0.5)*SCALE, (line.from.y + 0.5)*SCALE
-            local x2, y2 = (line.to.x + 0.5)*SCALE, (line.to.y + 0.5)*SCALE
-
-            if line.immediate then
-                love.graphics.setColor(1, 1, 1)
-            else
-                love.graphics.setColor(0.5, 0.5, 1)
-                love.graphics.setLineWidth(5)
-                love.graphics.line(x1, y1, x2, y2)
-                love.graphics.setLineWidth(1)
-            end
-
-            love.graphics.push()
-            love.graphics.translate((x1 + x2)/2, (y1 + y2)/2)
-            love.graphics.rotate(math.atan2(y2 - y1, x2 - x1))
-            love.graphics.polygon("fill", -10, -20, -10, 20, 10, 0)
-            love.graphics.pop()
-        end
-    else
+    if not self.settings_open then
         love.graphics.push()
         love.graphics.origin()
         love.graphics.setCanvas(self.preview_canvas)
@@ -515,32 +502,6 @@ function Editor:draw()
 
         love.graphics.draw(Assets.sprites["musicnote"], 20, 20)
     end
-
-
-    -- save preview icon for level portals
-    --[[if self.save_icon then
-        local canvas = love.graphics.newCanvas(PREVIEW_SIZE, PREVIEW_SIZE)
-        love.graphics.setCanvas(canvas)
-        love.graphics.replaceTransform(self:getIconTransform())
-        SCREENSHOTTING = true
-        ROOT:draw(0, true)
-        SCREENSHOTTING = false
-        love.graphics.setCanvas()
-
-        local img_data = canvas:newImageData()
-
-        local success, png_data = pcall(function() return img_data:encode("png") end)
-        if success then
-            local f, err = io.open(os.getenv('UserProfile').."\\AppData\\LocalLow\\Patrick Traynor\\Patrick's Parabox\\custom_levels\\"..self.level_name..".png", "wb")
-            if not f then
-                error(err)
-            end
-            f:write(png_data:getString())
-            f:close()
-        end
-
-        self.save_icon = false
-    end]]
 end
 
 return Editor

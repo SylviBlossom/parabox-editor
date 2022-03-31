@@ -16,7 +16,9 @@ function Block:init(x, y, width, height, parent, o)
     self.color_index = o.color_index -- custom color index override
     self.player = o.player or false
     self.possessable = o.possessable or false
+    self.player_order = o.player_order or 0
     self.flip_h = o.flip_h or false
+    self.hidden = o.hidden or false
 
     self.tiles = {}
     self.walls = {}
@@ -152,7 +154,7 @@ end
 function Block:getColorIndex()
     if self.color_index then
         return self.color_index
-    elseif self.player or self.possessable then
+    elseif self.player then
         return COLOR_PLAYER
     elseif self.filled then
         return COLOR_ORANGE
@@ -366,9 +368,9 @@ function Block:save(data)
         true_filled and self ~= ROOT, -- fill with walls
         self.player,                  -- is player
         self.possessable,             -- possessable
-        0,                            -- player order
+        self.player_order,            -- player order
         self.flip_h,                  -- flip horizontally
-        false,                        -- float in space (no parent)
+        self.hidden,                  -- float in space (no parent)
         0,                            -- special effect
     })
     if not true_filled then
@@ -395,14 +397,16 @@ function Block.load(data)
     local possessable = Utils.readBool(data)
     local player_order = Utils.readNum(data)
     local flip_h = Utils.readBool(data)
-    local float_in_space = Utils.readBool(data)
+    local hidden = Utils.readBool(data)
     local special_effect = Utils.readNum(data)
 
     if data.parent then y = data.parent.height-y-1 end
     local new_block = Block(x, y, width, height, data.parent, {
         player = player,
         possessable = possessable,
+        player_order = player_order,
         flip_h = flip_h,
+        hidden = hidden,
         color = {h, s, v},
         empty = not filled
     })
@@ -439,7 +443,9 @@ function Block:place(x, y)
         color_index = self.color_index,
         player = self.player,
         possessable = self.possessable,
-        flip_h = self.flip_h
+        player_order = self.player_order,
+        flip_h = self.flip_h,
+        hidden = self.hidden
     })
     block.key = Editor.next_key
     Editor.next_key = Editor.next_key + 1
@@ -465,11 +471,18 @@ function Block:openSettings()
     if Slab.CheckBox(self.player, "Player") then
         self.player = not self.player
     end
+    Slab.SameLine()
+    if Slab.Input("PlayerOrderInput", {Text = tostring(self.player_order), NumbersOnly = true, NoDrag = true, W = 40}) then
+        self.player_order = Slab.GetInputNumber()
+    end
     if Slab.CheckBox(self.possessable, "Possessable") then
         self.possessable = not self.possessable
     end
-    if Slab.CheckBox(self.flip_h, "Flip H") then
+    if Slab.CheckBox(self.flip_h, "Flip") then
         self.flip_h = not self.flip_h
+    end
+    if Slab.CheckBox(self.hidden, "Float In Space") then
+        self.hidden = not self.hidden
     end
 end
 
