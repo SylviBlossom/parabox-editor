@@ -46,7 +46,8 @@ function Editor:setBlock(block)
         Tiles.Ref(0, 0, self.block, self.block),
         Tiles.Block(0, 0, 5, 5, self.block, {player = true, possessable = true}),
         Tiles.Floor(0, 0, self.block, "PlayerButton"),
-        Tiles.Floor(0, 0, self.block, "Button")
+        Tiles.Floor(0, 0, self.block, "Button"),
+        Tiles.Floor(0, 0, self.block, "FastTravel")
     }
 end
 
