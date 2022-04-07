@@ -35,6 +35,8 @@ function Floor:draw()
         love.graphics.draw(Assets.sprites["floor_button"])
     elseif self.floor == "PlayerButton" then
         love.graphics.draw(Assets.sprites["floor_playerbutton"])
+    elseif self.floor == "FastTravel" then
+        love.graphics.draw(Assets.sprites["floor_fasttravel"])
     end
     --[[elseif self.floor == "Portal" then
         if not self.portal_icon then
